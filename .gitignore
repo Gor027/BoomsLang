@@ -1,0 +1,7 @@
+.idea
+*.iml
+ChangeLog.md
+.stack-work
+Setup.hs
+src/
+test/
