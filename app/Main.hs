@@ -3,6 +3,7 @@
 module Main where
 
 import Grammar.Abs ()
+import Grammar.ErrM
 import Grammar.Par (myLexer, pProgram)
 import Grammar.Skel ()
 import Processor.Evaluate
@@ -26,10 +27,10 @@ main = do
     Just content -> do
       input <- content
       case pProgram $ myLexer input of
-        Left msg -> do
+        Bad msg -> do
           putStrLn "\nParse              Failed...\n"
           putStrLn "Tokens:"
           putStrLn msg
           exitFailure
-        Right t -> do
+        Ok t -> do
           runIO t

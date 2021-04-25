@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d44d4fc999d86d932278a90d12b208b6ae38761fda56c88a3a266124d6ecf733
+-- hash: f1bc6d6cbe8d99aea1fa04ab3cdfbdc48fe5cb320e74b34508a46d4283ecc2ed
 
 name:           Boomslang
 version:        0.1.0.0
@@ -50,6 +50,7 @@ executable Boomslang-exe
       Grammar.Par
       Grammar.Print
       Grammar.Skel
+      Processor.Evaluate
       Paths_Boomslang
   hs-source-dirs:
       app

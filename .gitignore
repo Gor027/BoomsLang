@@ -5,3 +5,4 @@ ChangeLog.md
 Setup.hs
 src/
 test/
+app/interpreter
