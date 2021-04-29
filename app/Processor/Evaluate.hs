@@ -42,18 +42,15 @@ instance Show Value where
   show (VNum a) = show a
   show (VStr a) = show a
   show (VFun f _) = show f
-  show VVoid = "vVoid"
-  show VBreak = "vBreak"
-  show VCont = "vCont"
+  show VVoid = "void"
+  show VBreak = "break"
+  show VCont = "continue"
 
 lambdaIdent :: Ident
 lambdaIdent = Ident "lambda"
 
 -- End setup
 
--- Kind of CRUD functions
-
--- To be used in declaration
 newMCell :: Result Addr
 newMCell = do
   (mem, addr, stCount) <- get
@@ -83,7 +80,7 @@ updateVarByIdent ident f = do
   case M.lookup ident env of
     Just addr -> do
       val <- getValueByAddr addr
-      updateMem $ M.insert addr $ f val
+      updateMem $ M.insert addr (f val)
     Nothing -> throwError $ "Unknown variable " ++ show ident
 
 defaultInit :: Type -> Result Value
@@ -92,9 +89,7 @@ defaultInit Bool = return $ VBool False
 defaultInit Str = return $ VStr ""
 defaultInit _ = throwError "Types other than Int, Bool, Str are not initialized by default"
 
--- end of CRUD functions
-
--- variable declaration
+-- value declaration
 
 declareValue :: Ident -> Result Value -> Result (Result a -> Result a)
 declareValue name val = do
@@ -106,19 +101,14 @@ declareValue name val = do
   updateMem (M.insert cell vAssign)
   return (local (M.insert name cell))
 
-declareVar :: Type -> Ident -> Result (Result a -> Result a)
-declareVar t ident = declareValue ident (defaultInit t)
-
-declareVars :: Type -> [Ident] -> Result (Result a -> Result a)
-declareVars t idents = declareValues idents (map (\_ -> defaultInit t) idents)
-  where
-    declareValues [] [] = return (local id)
-    declareValues [] (_ : _) = throwError "Parameter mismatch"
-    declareValues (_ : _) [] = throwError "Parameter mismatch"
-    declareValues (var : vars) (val : values) = do
-      declVar <- declareValue var val
-      declVars <- declareValues vars values
-      return $ declVar . declVars
+declareValues :: [Ident] -> [Result Value] -> Result (Result a -> Result a)
+declareValues [] [] = return (local id)
+declareValues [] (_ : _) = throwError "Parameter mismatch"
+declareValues (_ : _) [] = throwError "Parameter mismatch"
+declareValues (var : vars) (val : values) = do
+  declVar <- declareValue var val
+  declVars <- declareValues vars values
+  return $ declVar . declVars
 
 declareIdents :: [Item] -> [Ident]
 declareIdents = map getFromItem
@@ -126,14 +116,17 @@ declareIdents = map getFromItem
     getFromItem (NoInit i) = i
     getFromItem (Init i _) = i
 
--- end of variable declaration
+-- end of value declaration
 
+-- run program
 run :: Program -> Result ()
-run _ = undefined 
+run _ = undefined
 
 runIO :: Program -> IO ()
 runIO p = do
   result <- runExceptT (runStateT (runReaderT (run p) M.empty) (M.empty, 0, 0)) -- unbox from IO
-  case result of 
+  case result of
     Bad msg -> putStrLn $ "Runtime error: " ++ msg
     _ -> return ()
+
+-- end run program
