@@ -58,7 +58,8 @@ checkStackOverflow ident = do
   (mem, addr, stackLevel) <- get
   if stackLevel > 5000 -- Stack size
     then throwError $ "Stack overflow on function " ++ show ident
-    else put (mem, addr, stackLevel + 1)
+    else -- Increment stack level to simulate function registration
+      put (mem, addr, stackLevel + 1)
 
 evalExp :: Expr -> Result Value
 evalExp (EVar i) = getValueByIdent i
@@ -67,16 +68,16 @@ evalExp ELitTrue = return $ VBool True
 evalExp ELitFalse = return $ VBool False
 evalExp (EApp ident args) = do
   checkStackOverflow ident -- throws "Stack Overflow Exception"
-  (VFun (FnDef _ _ fArgs fBlock) env) <- getValueByIdent ident
+  (VFun (FnDef _ _ fArgs fBlock) _) <- getValueByIdent ident
   -- Note: function has type "FnDef Type Ident [Arg] Block"
-  let fArgIdents = map (\(Arg _ argI) -> argI) fArgs
-  let evaledArgs = map evalExp args
+  let fArgIdents = map (\(Arg _ argId) -> argId) fArgs -- get args
+  let evaledArgs = map evalExp args -- evaluate args
   let Block stmts = fBlock
-  -- TODO: The block should be evaluated with evaluated args evaledArgs
-  return . VBool $ True
-
-
-
+  continueDecl <- declareValues fArgIdents evaledArgs
+  resReturned <- continueDecl $ evalBlock stmts
+  case resReturned of
+    Just val -> return val
+    Nothing -> return VVoid
 evalExp (EString s) = return $ VStr s
 evalExp (ELambda args t b) = do
   VFun (FnDef t lambdaIdent args b) <$> ask
@@ -115,11 +116,11 @@ evalExp (EOr e1 e2) = do
 
 defineFunctions :: Item -> Result Value
 defineFunctions (Init _ exp) = do
-    case exp of
-      ELambda args t block -> do
-         (VFun (FnDef funType funIdent funArgs funBlock) funEnv) <- evalExp (ELambda args t block)
-         return $ VFun (FnDef funType funIdent funArgs funBlock) funEnv
-      _ -> evalExp exp
+  case exp of
+    ELambda args t block -> do
+      (VFun (FnDef funType funIdent funArgs funBlock) funEnv) <- evalExp (ELambda args t block)
+      return $ VFun (FnDef funType funIdent funArgs funBlock) funEnv
+    _ -> evalExp exp
 defineFunctions (NoInit ident) = throwError $ "There is no definition for function with name " ++ show ident
 
 defineValues :: Type -> Item -> Result Value
@@ -132,25 +133,20 @@ initItems items t = do
     FuncType _ _ -> map defineFunctions items
     _ -> map (defineValues t) items
 
-
 -- TODO: Implement block evaluation
 evalBlock :: [Stmt] -> Result (Maybe Value)
 evalBlock (s : ss) =
-    case s of
-      Empty -> evalBlock ss
-      BStmt (Block stmts) -> do
-        resultBlock <- evalBlock stmts
-        case resultBlock of
-          Nothing -> evalBlock ss
-          Just val -> return $ Just val
-      Decl t items -> do -- int x, y, z; || fun (int -> int) fib, timesTwo;
-        let defValues = initItems items t
-        let idents = declareIdents items
-        -- get function `Result (Maybe a) -> Result (Maybe a)` to continue declaration of items
-        continueDecl <- declareValues idents defValues
-        continueDecl $ evalBlock ss
-
-
-
-
-
+  case s of
+    Empty -> evalBlock ss
+    BStmt (Block stmts) -> do
+      resultBlock <- evalBlock stmts
+      case resultBlock of
+        Nothing -> evalBlock ss
+        Just val -> return $ Just val
+    Decl t items -> do
+      -- int x, y, z; || fun (int -> int) fib, timesTwo;
+      let defValues = initItems items t
+      let idents = declareIdents items
+      -- get function `Result (Maybe a) -> Result (Maybe a)` to continue declaration of items
+      continueDecl <- declareValues idents defValues
+      continueDecl $ evalBlock ss
