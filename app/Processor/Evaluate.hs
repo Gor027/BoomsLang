@@ -7,7 +7,6 @@ import Control.Monad.Reader
 import Control.Monad.State
 import qualified Data.Map as M
 import Grammar.Abs
-import Grammar.ErrM
 
 -- Setup
 
@@ -117,16 +116,3 @@ declareIdents = map getFromItem
     getFromItem (Init i _) = i
 
 -- end of value declaration
-
--- run program
-run :: Program -> Result ()
-run _ = undefined
-
-runIO :: Program -> IO ()
-runIO p = do
-  result <- runExceptT (runStateT (runReaderT (run p) M.empty) (M.empty, 0, 0)) -- unbox from IO
-  case result of
-    Bad msg -> putStrLn $ "Runtime error: " ++ msg
-    _ -> return ()
-
--- end run program

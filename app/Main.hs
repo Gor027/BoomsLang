@@ -2,13 +2,77 @@
 
 module Main where
 
-import Grammar.Abs ()
+import Control.Monad.Except (runExceptT, throwError)
+import Control.Monad.RWS.Class (ask, get)
+import Control.Monad.Reader (runReaderT)
+import Control.Monad.State.Lazy (runStateT)
+import Data.Foldable as F
+import Data.Map as M
+import Grammar.Abs
 import Grammar.ErrM
 import Grammar.Par (myLexer, pProgram)
 import Grammar.Skel ()
 import Processor.Evaluate
+import Processor.EvaluateStmt
 import System.Environment (getArgs)
-import System.Exit (exitFailure, exitSuccess)
+import System.Exit (exitFailure)
+
+-- run program
+
+accumulate :: Result (Result () -> Result ()) -> Result () -> Result ()
+accumulate declCont curRes = do
+  f <- declCont
+  f curRes
+
+declare :: TopDef -> Result (Result () -> Result ())
+declare topDef = do
+  mainEnv <- ask
+  case topDef of
+    GlobDecl t items -> declareValues (declareIdents items) (initItems items t)
+    GlobFinDecl t items -> declareValues (declareIdents items) (initItems items t)
+    FnDef _ ident _ _ -> declareValue ident (return $ VFun topDef mainEnv)
+
+setValuesInMem :: (Addr, Value) -> Result ()
+setValuesInMem (addr, value) = do
+  globalEnv <- ask
+  case value of
+    (VFun f _) -> updateMem (M.insert addr (VFun f globalEnv))
+    _ -> updateMem id
+
+setGlobalEnv :: Result ()
+setGlobalEnv = do
+  (mem, _, _) <- get
+  F.mapM_ setValuesInMem (M.toList mem)
+
+config :: Result ()
+config = do
+  setGlobalEnv
+  globEnv <- ask
+  let mainFun = Ident "main"
+  case M.lookup mainFun globEnv of
+    Nothing -> throwError "No definition for `main` function"
+    Just addr -> do
+      result <- getValueByAddr addr
+      case result of
+        (VFun mainF _) -> do
+          _ <- evalMain mainF globEnv
+          return ()
+        _ -> throwError "Unknown Exception"
+
+run :: Program -> Result ()
+run (Program topDefs) =
+  -- evaluate TopDefs: FnDef, GlobDecl, GlobFinDecl
+  -- TODO :: May be changed
+  F.foldr (accumulate . declare) config topDefs
+
+runIO :: Program -> IO ()
+runIO p = do
+  result <- runExceptT (runStateT (runReaderT (run p) M.empty) (M.empty, 0, 0)) -- unbox from IO
+  case result of
+    Bad msg -> putStrLn $ "Runtime error: " ++ msg
+    _ -> return ()
+
+-- end run program
 
 usage :: IO ()
 usage = do

@@ -61,6 +61,15 @@ checkStackOverflow ident = do
     else -- Increment stack level to simulate function registration
       put (mem, addr, stackLevel + 1)
 
+evalMain :: TopDef -> Env -> Result Value
+evalMain (FnDef _ _ _ fBlock) _ = do
+  let Block stmts = fBlock
+  let continueDecl = local id
+  result <- continueDecl $ evalBlock stmts
+  case result of
+    Nothing -> return VVoid
+    Just val -> return val
+
 evalExp :: Expr -> Result Value
 evalExp (EVar i) = getValueByIdent i
 evalExp (ELitInt i) = return $ VNum i
@@ -133,8 +142,12 @@ initItems items t = do
     FuncType _ _ -> map defineFunctions items
     _ -> map (defineValues t) items
 
--- TODO: Implement block evaluation
+-- TODO: Left to be implemented ...
+--    | FnInDef Type Ident [Arg] Block
+--    | ConstFor Type Ident Expr Expr Stmt
+
 evalBlock :: [Stmt] -> Result (Maybe Value)
+evalBlock [] = return Nothing
 evalBlock (s : ss) =
   case s of
     Empty -> evalBlock ss
@@ -150,3 +163,48 @@ evalBlock (s : ss) =
       -- get function `Result (Maybe a) -> Result (Maybe a)` to continue declaration of items
       continueDecl <- declareValues idents defValues
       continueDecl $ evalBlock ss
+    DeclFinal t items -> evalBlock (Decl t items : ss)
+    Ass ident exp -> do
+      evaledExp <- evalExp exp
+      -- update variable ::: const :: a -> b -> a
+      updateVarByIdent ident (const evaledExp)
+      -- continue evaluation of stmts
+      evalBlock ss
+    Incr ident -> do
+      -- Create assign to variable plus one statement
+      let assignStmt = Ass ident (EAdd (EVar ident) Plus (ELitInt 1))
+      evalBlock (assignStmt : ss)
+    Decr ident -> do
+      let assignStmt = Ass ident (EAdd (EVar ident) Minus (ELitInt 1))
+      evalBlock (assignStmt : ss)
+    Ret exp -> do
+      (mem, addr, stackLevel) <- get
+      evaledExp <- evalExp exp
+      let result = Just evaledExp
+      put (mem, addr, stackLevel - 1)
+      return result
+    VRet -> do
+      (mem, addr, stackLevel) <- get
+      let result = Just VVoid
+      put (mem, addr, stackLevel -1)
+      return result
+    Cond exp stmt -> evalBlock $ CondElse exp stmt Empty : ss
+    CondElse exp stmt1 stmt2 -> do
+      cond <- evalExp exp
+      case cond of
+        (VBool val) -> do
+          -- TODO: Maybe positive integer and not null string should be considered as true
+          if val
+            then evalBlock (BStmt (Block [stmt1]) : ss)
+            else evalBlock (BStmt (Block [stmt2]) : ss)
+        _ -> throwError $ "Expecting boolean, got value of type " ++ show cond
+    w@(While exp stmt) -> evalBlock $ CondElse exp (BStmt (Block [stmt, w])) Empty : ss -- TODO: Break and Continue to be added
+    SExp exp -> evalExp exp >> evalBlock ss -- >> ignores the return value from `evalExp exp`
+    FnInDef t ident args block -> undefined -- TODO: function definition in block
+    ConstFor t ident exp1 exp2 stmt -> undefined -- TODO: for loop
+    Break -> return (Just VBreak)
+    Continue -> return (Just VCont)
+    Print exp -> do
+      res <- evalExp exp
+      liftIO $ print res -- liftIO lifts IO () to Result
+      evalBlock ss
