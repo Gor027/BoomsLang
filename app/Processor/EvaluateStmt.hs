@@ -1,33 +1,10 @@
 module Processor.EvaluateStmt where
 
 import Control.Monad.Except
+import Control.Monad.RWS.Class
 import Grammar.Abs
-import Grammar.ErrM
 import Processor.Evaluate
 
---                                             | VBool {bool :: Bool}
---                                             | VNum {num :: Integer}
---                                             | VStr {str :: String}
---                                             | VFun {fun :: TopDef, env :: Env}
---                                             | VVoid
---                                             | VBreak
---                                             | VCont
---    | EVar Ident
---    | ELitInt Integer
---    | ELitTrue
---    | ELitFalse
---    | EApp Ident [Expr]
---    | EString String
---    | ELambda [Arg] Type Block
---    | Neg Expr
---    | Not Expr
---    | EMul Expr MulOp Expr
---    | EAdd Expr AddOp Expr
---    | ERel Expr RelOp Expr
---    | EAnd Expr Expr
---    | EOr Expr Expr
-
--- TODO: Relational operations should be evaluated here
 evalAddOp :: AddOp -> Value -> Value -> Result Value
 evalAddOp Plus (VNum v1) (VNum v2) = return $ VNum $ v1 + v2
 evalAddOp Plus (VStr v1) (VStr v2) = return $ VStr $ v1 ++ v2
@@ -45,6 +22,7 @@ evalMulOp Div v1 v2 = throwError $ "Cannot divide values of type " ++ show v1 ++
 evalMulOp Mod (VNum v1) (VNum v2)
   | v2 == 0 = throwError "Cannot find remainder for division by 0"
   | otherwise = return $ VNum $ mod v1 v2
+evalMulOp Mod v1 v2 = throwError $ "Cannot find mod on types " ++ show v1 ++ " and " ++ show v2
 
 isLess :: Value -> Value -> Result Value
 isLess (VBool v1) (VBool v2) = return . VBool $ (v1 < v2)
@@ -75,24 +53,43 @@ evalRelOp NE v1 v2 = do
   (VBool res) <- isEqual v1 v2
   return . VBool $ not res
 
+checkStackOverflow :: Ident -> Result ()
+checkStackOverflow ident = do
+  (mem, addr, stackLevel) <- get
+  if stackLevel > 5000 -- Stack size
+    then throwError $ "Stack overflow on function " ++ show ident
+    else put (mem, addr, stackLevel + 1)
+
 evalExp :: Expr -> Result Value
 evalExp (EVar i) = getValueByIdent i
 evalExp (ELitInt i) = return $ VNum i
 evalExp ELitTrue = return $ VBool True
 evalExp ELitFalse = return $ VBool False
-evalExp (EApp i es) = undefined -- TODO: Assign
+evalExp (EApp ident args) = do
+  checkStackOverflow ident -- throws "Stack Overflow Exception"
+  (VFun (FnDef _ _ fArgs fBlock) env) <- getValueByIdent ident
+  -- Note: function has type "FnDef Type Ident [Arg] Block"
+  let fArgIdents = map (\(Arg _ argI) -> argI) fArgs
+  let evaledArgs = map evalExp args
+  let Block stmts = fBlock
+  -- TODO: The block should be evaluated with evaluated args evaledArgs
+  return . VBool $ True
+
+
+
 evalExp (EString s) = return $ VStr s
-evalExp (ELambda args t b) = undefined -- TODO design
+evalExp (ELambda args t b) = do
+  VFun (FnDef t lambdaIdent args b) <$> ask
 evalExp (Neg e) = do
   val <- evalExp e
   case val of
     (VNum v) -> return $ VNum (- v)
-    _ -> throwError $ "Cannot change sign of a value of type " ++ show val
+    _ -> throwError $ "Numeric negation applied to a non numberic value of type " ++ show val
 evalExp (Not e) = do
   val <- evalExp e
   case val of
     (VBool v) -> return $ VBool (not v)
-    _ -> throwError $ "Cannot negate a value of type " ++ show val
+    _ -> throwError $ "Boolean negation applied to a non boolean value of type " ++ show val
 evalExp (EAdd e1 op e2) = do
   v1 <- evalExp e1
   v2 <- evalExp e2
@@ -115,3 +112,45 @@ evalExp (EOr e1 e2) = do
   if val1
     then return . VBool $ True
     else evalExp e2
+
+defineFunctions :: Item -> Result Value
+defineFunctions (Init _ exp) = do
+    case exp of
+      ELambda args t block -> do
+         (VFun (FnDef funType funIdent funArgs funBlock) funEnv) <- evalExp (ELambda args t block)
+         return $ VFun (FnDef funType funIdent funArgs funBlock) funEnv
+      _ -> evalExp exp
+defineFunctions (NoInit ident) = throwError $ "There is no definition for function with name " ++ show ident
+
+defineValues :: Type -> Item -> Result Value
+defineValues _ (Init _ exp) = evalExp exp
+defineValues t (NoInit _) = defaultInit t
+
+initItems :: [Item] -> Type -> [Result Value]
+initItems items t = do
+  case t of
+    FuncType _ _ -> map defineFunctions items
+    _ -> map (defineValues t) items
+
+
+-- TODO: Implement block evaluation
+evalBlock :: [Stmt] -> Result (Maybe Value)
+evalBlock (s : ss) =
+    case s of
+      Empty -> evalBlock ss
+      BStmt (Block stmts) -> do
+        resultBlock <- evalBlock stmts
+        case resultBlock of
+          Nothing -> evalBlock ss
+          Just val -> return $ Just val
+      Decl t items -> do -- int x, y, z; || fun (int -> int) fib, timesTwo;
+        let defValues = initItems items t
+        let idents = declareIdents items
+        -- get function `Result (Maybe a) -> Result (Maybe a)` to continue declaration of items
+        continueDecl <- declareValues idents defValues
+        continueDecl $ evalBlock ss
+
+
+
+
+
