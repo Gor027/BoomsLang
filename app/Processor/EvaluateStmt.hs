@@ -70,6 +70,7 @@ evalMain (FnDef _ _ _ fBlock) _ = do
   case result of
     Nothing -> return VVoid
     Just val -> return val
+evalMain _ _ = throwError "Unknown exception in main function evalutaion"
 
 evalExp :: Expr -> Result Value
 evalExp (EVar i) = getValueByIdent i
@@ -217,7 +218,7 @@ evalBlock (s : ss) =
     ConstFor _ ident exp1 exp2 stmt -> do
       -- Note: Only numeric values are expected as iteration ranges
       from <- evalExp exp1
-      case from of
+      _ <- case from of
         (VNum begin) -> do
           to <- evalExp exp2
           case to of
@@ -229,7 +230,7 @@ evalBlock (s : ss) =
                   updateMem (M.insert memCell (VNum fCurrent))
                   if fCurrent <= fEnd
                     then do
-                      evalBlock [BStmt (Block [stmt])]
+                      _ <- evalBlock [BStmt (Block [stmt])]
                       runBody memCell (fCurrent + 1) fEnd st
                     else return Nothing
             _ -> throwError $ "Expecting numeric type, got value of type " ++ show to
