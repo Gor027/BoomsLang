@@ -2,6 +2,7 @@ module Processor.EvaluateStmt where
 
 import Control.Monad.Except
 import Control.Monad.RWS.Class
+import qualified Data.Map as M
 import Grammar.Abs
 import Processor.Evaluate
 
@@ -144,7 +145,6 @@ initItems items t = do
 
 -- TODO: Left to be implemented ...
 --    | FnInDef Type Ident [Arg] Block
---    | ConstFor Type Ident Expr Expr Stmt
 
 evalBlock :: [Stmt] -> Result (Maybe Value)
 evalBlock [] = return Nothing
@@ -198,13 +198,46 @@ evalBlock (s : ss) =
             then evalBlock (BStmt (Block [stmt1]) : ss)
             else evalBlock (BStmt (Block [stmt2]) : ss)
         _ -> throwError $ "Expecting boolean, got value of type " ++ show cond
-    w@(While exp stmt) -> evalBlock $ CondElse exp (BStmt (Block [stmt, w])) Empty : ss -- TODO: Break and Continue to be added
+    w@(While exp stmt) -> do
+      cond <- evalExp exp
+      case cond of
+        (VBool val) -> do
+          if val
+            then do
+              res <- evalBlock [BStmt (Block [stmt])]
+              case res of
+                Just VBreak -> return Nothing
+                Just VCont -> evalBlock [w]
+                Nothing -> evalBlock [w]
+                Just _ -> return res
+            else return Nothing
+        _ -> throwError $ "Expecting boolean, got value of type " ++ show cond
     SExp exp -> evalExp exp >> evalBlock ss -- >> ignores the return value from `evalExp exp`
     FnInDef t ident args block -> undefined -- TODO: function definition in block
-    ConstFor t ident exp1 exp2 stmt -> undefined -- TODO: for loop
+    ConstFor _ ident exp1 exp2 stmt -> do
+      -- Note: Only numeric values are expected as iteration ranges
+      from <- evalExp exp1
+      case from of
+        (VNum begin) -> do
+          to <- evalExp exp2
+          case to of
+            (VNum end) -> do
+              cell <- newMCell
+              local (M.insert ident cell) (runBody cell begin end stmt)
+              where
+                runBody memCell fCurrent fEnd st = do
+                  updateMem (M.insert memCell (VNum fCurrent))
+                  if fCurrent <= fEnd
+                    then do
+                      evalBlock [BStmt (Block [stmt])]
+                      runBody memCell (fCurrent + 1) fEnd st
+                    else return Nothing
+            _ -> throwError $ "Expecting numeric type, got value of type " ++ show to
+        _ -> throwError $ "Expecting numeric type, got value of type " ++ show from
+      evalBlock ss
     Break -> return (Just VBreak)
     Continue -> return (Just VCont)
     Print exp -> do
       res <- evalExp exp
-      liftIO $ print res -- liftIO lifts IO () to Result
+      liftIO $ print res
       evalBlock ss

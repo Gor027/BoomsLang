@@ -6,6 +6,13 @@ int fib(int n) {
    }
 }
 
+void testFor() {
+    print("Testing for loop......");
+    for (int i = 0 to 5) {
+        print(i);
+    }
+}
+
 void main(){
 	print(fib(6));
 	
@@ -16,4 +23,6 @@ void main(){
 	};
 	
 	print(fac(4));
+
+	testFor();
 }
