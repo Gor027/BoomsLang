@@ -1,28 +1,18 @@
-int fib(int n) {
-   if(n <= 1){
-      return n;
-   } else {
-      return (fib(n-1) + fib(n-2));
-   }
+int factorial(int a) {
+	int r;
+	int n;
+
+	r = 1;
+	n = a;
+
+	while (n > 0) {
+	  r = r * n;
+	  n = n - 1;
+	}
+
+	return r;
 }
 
-void testFor() {
-    print("Testing for loop......");
-    for (int i = 0 to 5) {
-        print(i);
-    }
-}
-
-void main(){
-	print(fib(6));
-	
-	fun (int -> int) fac = lambda(int a) : int {
-		if (a==0)
-			return 1;
-		return a * fac(a-1);
-	};
-	
-	print(fac(4));
-
-	testFor();
+void main() {
+    print(factorial(5));
 }

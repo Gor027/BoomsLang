@@ -78,14 +78,14 @@ evalExp (ELitInt i) = return $ VNum i
 evalExp ELitTrue = return $ VBool True
 evalExp ELitFalse = return $ VBool False
 evalExp (EApp ident args) = do
-  checkStackOverflow ident -- throws "Stack Overflow Exception"
-  (VFun (FnDef _ _ fArgs fBlock) _) <- getValueByIdent ident
+  checkStackOverflow ident
+  (VFun (FnDef _ _ fArgs fBlock) fEnv) <- getValueByIdent ident
   -- Note: function has type "FnDef Type Ident [Arg] Block"
   let fArgIdents = map (\(Arg _ argId) -> argId) fArgs -- get args
   let evaledArgs = map evalExp args -- evaluate args
   let Block stmts = fBlock
   continueDecl <- declareValues fArgIdents evaledArgs
-  resReturned <- continueDecl $ evalBlock stmts
+  resReturned <- local (const fEnv) $ continueDecl $ evalBlock stmts
   case resReturned of
     Just val -> return val
     Nothing -> return VVoid
@@ -144,9 +144,6 @@ initItems items t = do
     FuncType _ _ -> map defineFunctions items
     _ -> map (defineValues t) items
 
--- TODO: Left to be implemented ...
---    | FnInDef Type Ident [Arg] Block
-
 evalBlock :: [Stmt] -> Result (Maybe Value)
 evalBlock [] = return Nothing
 evalBlock (s : ss) =
@@ -187,7 +184,7 @@ evalBlock (s : ss) =
     VRet -> do
       (mem, addr, stackLevel) <- get
       let result = Just VVoid
-      put (mem, addr, stackLevel -1)
+      put (mem, addr, stackLevel - 1)
       return result
     Cond exp stmt -> evalBlock $ CondElse exp stmt Empty : ss
     CondElse exp stmt1 stmt2 -> do
@@ -201,7 +198,7 @@ evalBlock (s : ss) =
         _ -> throwError $ "Expecting boolean, got value of type " ++ show cond
     w@(While exp stmt) -> do
       cond <- evalExp exp
-      case cond of
+      result <- case cond of
         (VBool val) -> do
           if val
             then do
@@ -213,8 +210,14 @@ evalBlock (s : ss) =
                 Just _ -> return res
             else return Nothing
         _ -> throwError $ "Expecting boolean, got value of type " ++ show cond
+      case result of
+        Nothing -> evalBlock ss
+        Just _ -> return result
     SExp exp -> evalExp exp >> evalBlock ss -- >> ignores the return value from `evalExp exp`
-    FnInDef t ident args block -> undefined -- TODO: function definition in block
+    FnInDef t ident args block -> do
+      outerEnv <- ask
+      continueDecl <- declareValue ident (return $ VFun (FnDef t ident args block) outerEnv)
+      continueDecl (evalBlock ss)
     ConstFor _ ident exp1 exp2 stmt -> do
       -- Note: Only numeric values are expected as iteration ranges
       from <- evalExp exp1
@@ -240,5 +243,5 @@ evalBlock (s : ss) =
     Continue -> return (Just VCont)
     Print exp -> do
       res <- evalExp exp
-      liftIO $ print res
+      (liftIO . print) res
       evalBlock ss

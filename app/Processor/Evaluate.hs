@@ -8,6 +8,8 @@ import Control.Monad.State
 import qualified Data.Map as M
 import Grammar.Abs
 
+import Debug.Trace as T
+
 -- Setup
 
 type Addr = Integer
@@ -39,7 +41,7 @@ data Value
 instance Show Value where
   show (VBool a) = show a
   show (VNum a) = show a
-  show (VStr a) = show a
+  show (VStr a) = a
   show (VFun f _) = show f
   show VVoid = "void"
   show VBreak = "break"
@@ -116,3 +118,16 @@ declareIdents = map getFromItem
     getFromItem (Init i _) = i
 
 -- end of value declaration
+
+debugShow :: Result ()
+debugShow = do
+  e <- ask
+  (mem,_, _) <- get
+  let debugString = join $ map (entryToStr mem) (M.toList e)
+  _ <- trace debugString $ return ()
+  return ()
+  where
+    entryToStr :: Mem -> (Ident, Addr) -> String
+    entryToStr mm (l, r) = "DEBUG: '" ++ identStr l ++ "'->" ++ show r ++ "->" ++ show (M.lookup r mm) ++ "\n"
+    identStr (Ident i) = i
+
