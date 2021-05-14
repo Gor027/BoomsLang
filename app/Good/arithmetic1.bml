@@ -1,0 +1,15 @@
+int factorial(int a) {
+	int r = 1;
+
+	while (a > 0) {
+	  r = r * a;
+	  a = a - 1;
+	}
+
+	return r;
+}
+
+void main() {
+    // 5 factorial is 120
+    print("Factorial of 5 is " + factorial(5));
+}

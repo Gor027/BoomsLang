@@ -1,0 +1,6 @@
+final int global = a * 2;
+
+void main() {
+    // Should not print anything on output
+    print("Undeclared variable is seen!");
+}

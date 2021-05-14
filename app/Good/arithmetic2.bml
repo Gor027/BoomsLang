@@ -1,0 +1,35 @@
+void doubleAndCompare(int a) {
+    a = a * 2;
+
+    if (a > 10) {
+        print("The doubled input is " + a);
+    } else {
+        print("The doubled input " + a + " is less than or equal to 10");
+    }
+}
+
+void testCorrectAdditions() {
+    int a = 5;
+    int b = 10;
+    int addInts = a + b;
+
+    if (addInts - a == b) {
+        print("Add/Sub ints works");
+    }
+
+    string a = "Addition ";
+    string b = "of ";
+    string c = "strings ";
+    string d = "works!";
+    string addStrings = a + b + c + d;
+
+    print(addStrings);
+}
+
+void main() {
+    doubleAndCompare(4);
+    doubleAndCompare(6);
+
+    print(" === Test Addition operations === ");
+    testCorrectAdditions();
+}

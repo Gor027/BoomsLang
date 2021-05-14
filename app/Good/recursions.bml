@@ -1,0 +1,15 @@
+void first() {
+    second();
+}
+
+void second() {
+    first();
+}
+
+void testStackOverflow() {
+    first();
+}
+
+void main() {
+    testStackOverflow();
+}

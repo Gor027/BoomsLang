@@ -1,0 +1,65 @@
+int testReturnInWhile() {
+    int i = 0;
+
+    while (i < 50) {
+        if (i == 5) {
+            return i;
+        }
+        i++;
+        print(i);
+    }
+}
+
+int testBreakInWhile() {
+    int i = 0;
+
+    while (i < 50) {
+        if (i == 5) {
+            break;
+        }
+        i++;
+        print(i);
+    }
+
+    return i;
+}
+
+int testContInWhile() {
+    int i = 0;
+    int omit;
+
+    while (i < 5) {
+        if (i == 3) {
+            i++;
+            omit = i;
+            continue;
+        }
+        i++;
+        print(i);
+    }
+
+    return omit;
+}
+
+void main() {
+    print("... First test ...\n");
+
+    // Testing return stmt in while
+    int result = testReturnInWhile();
+    print("While returned on " + result);
+    // End
+
+    print("\n... Second test ...\n");
+
+    // Testing break stmt in while
+    result = testBreakInWhile();
+    print("While break on " + result);
+    // End
+
+    print("\n... Third test ...\n");
+
+    // Testing continue stmt in while
+    result = testContInWhile();
+    print("While omits value " + result);
+    // End
+}

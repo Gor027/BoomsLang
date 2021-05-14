@@ -1,0 +1,18 @@
+final int glob = 17;
+
+int main() {
+    int test = 7;
+
+    {
+        string test = "overshadowing test var";
+
+        print(test);
+    }
+
+    print(test);
+
+    string glob = "Overshadowing final variable with value " + glob;
+    print(glob);
+
+    return 0;
+}

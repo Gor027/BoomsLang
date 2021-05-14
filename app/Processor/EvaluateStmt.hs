@@ -8,13 +8,27 @@ import Processor.Evaluate
 
 evalAddOp :: AddOp -> Value -> Value -> Result Value
 evalAddOp Plus (VNum v1) (VNum v2) = return $ VNum $ v1 + v2
+evalAddOp Plus (VNum v1) (VBool True) = return $ VNum $ v1 + 1
+evalAddOp Plus (VBool True) (VNum v2) = return $ VNum $ 1 + v2
+evalAddOp Plus (VNum v1) (VBool False) = return $ VNum v1
+evalAddOp Plus (VBool False) (VNum v2) = return $ VNum v2
 evalAddOp Plus (VStr v1) (VStr v2) = return $ VStr $ v1 ++ v2
+evalAddOp Plus (VStr v1) (VNum v2) = return $ VStr $ v1 ++ show v2
+evalAddOp Plus (VStr v1) (VBool v2) = return $ VStr $ v1 ++ show v2
 evalAddOp Plus v1 v2 = throwError $ "Cannot add values of type " ++ show v1 ++ " and " ++ show v2
 evalAddOp Minus (VNum v1) (VNum v2) = return $ VNum $ v1 - v2
+evalAddOp Minus (VNum v1) (VBool True) = return $ VNum $ v1 - 1
+evalAddOp Minus (VBool True) (VNum v2) = return $ VNum $ 1 - v2
+evalAddOp Minus (VNum v1) (VBool False) = return $ VNum v1
+evalAddOp Minus (VBool False) (VNum v2) = return $ VNum (- v2)
 evalAddOp Minus v1 v2 = throwError $ "Cannot subtract values of type " ++ show v1 ++ " and " ++ show v2
 
 evalMulOp :: MulOp -> Value -> Value -> Result Value
 evalMulOp Times (VNum v1) (VNum v2) = return $ VNum $ v1 * v2
+evalMulOp Times (VNum v1) (VBool True) = return $ VNum v1
+evalMulOp Times (VBool True) (VNum v2) = return $ VNum v2
+evalMulOp Times (VBool False) (VNum _) = return $ VNum 0
+evalMulOp Times (VNum _) (VBool False) = return $ VNum 0
 evalMulOp Times v1 v2 = throwError $ "Cannot multiply values of type " ++ show v1 ++ " and " ++ show v2
 evalMulOp Div (VNum v1) (VNum v2)
   | v2 == 0 = throwError "Cannot divide by 0"
@@ -206,8 +220,8 @@ evalBlock (s : ss) =
               case res of
                 Just VBreak -> return Nothing
                 Just VCont -> evalBlock [w]
-                Nothing -> evalBlock [w]
                 Just _ -> return res
+                Nothing -> evalBlock [w]
             else return Nothing
         _ -> throwError $ "Expecting boolean, got value of type " ++ show cond
       case result of
@@ -233,8 +247,10 @@ evalBlock (s : ss) =
                   updateMem (M.insert memCell (VNum fCurrent))
                   if fCurrent <= fEnd
                     then do
-                      _ <- evalBlock [BStmt (Block [stmt])]
-                      runBody memCell (fCurrent + 1) fEnd st
+                      res <- evalBlock [BStmt (Block [stmt])]
+                      case res of
+                        Just _ -> return res
+                        _ -> runBody memCell (fCurrent + 1) fEnd st
                     else return Nothing
             _ -> throwError $ "Expecting numeric type, got value of type " ++ show to
         _ -> throwError $ "Expecting numeric type, got value of type " ++ show from
