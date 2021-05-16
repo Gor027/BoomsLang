@@ -1,0 +1,13 @@
+void main() {
+    fun(void -> void) f = lambda() : void{
+        print("In f");
+        g();
+    };
+
+    fun(void -> void) g = lambda() : void{
+        print("In g");
+        f();
+    };
+
+    f(); // lambda 'g' is unknown in lambda 'f'
+}

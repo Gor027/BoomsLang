@@ -1,0 +1,4 @@
+int main() {
+    print(7/0);
+    return 0;
+}
