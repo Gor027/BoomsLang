@@ -71,7 +71,7 @@ evalRelOp NE v1 v2 = do
 checkStackOverflow :: Ident -> Result ()
 checkStackOverflow ident = do
   (mem, addr, stackLevel) <- get
-  if stackLevel > 5000 -- Stack size
+  if stackLevel > 5000 -- Stack size (Function calls)
     then throwError $ "Stack overflow on function " ++ show ident
     else -- Increment stack level to simulate function registration
       put (mem, addr, stackLevel + 1)
@@ -94,11 +94,12 @@ evalExp ELitFalse = return $ VBool False
 evalExp (EApp ident args) = do
   checkStackOverflow ident
   (VFun (FnDef _ _ fArgs fBlock) fEnv) <- getValueByIdent ident
-  -- Note: function has type "FnDef Type Ident [Arg] Block"
   let fArgIdents = map (\(Arg _ argId) -> argId) fArgs -- get args
-  let evaledArgs = map evalExp args -- evaluate args
+  let evaledValues = map evalExp args -- evaluate args
   let Block stmts = fBlock
-  continueDecl <- declareValues fArgIdents evaledArgs
+  continueDecl <- declareValues fArgIdents evaledValues
+  -- Called function's environment should be passed in the Result
+  -- in case the returned value is a function (closure property)
   resReturned <- local (const fEnv) $ continueDecl $ evalBlock stmts
   case resReturned of
     Just val -> return val
@@ -142,9 +143,9 @@ evalExp (EOr e1 e2) = do
 defineFunctions :: Item -> Result Value
 defineFunctions (Init _ exp) = do
   case exp of
-    ELambda args t block -> do
-      (VFun (FnDef funType funIdent funArgs funBlock) funEnv) <- evalExp (ELambda args t block)
-      return $ VFun (FnDef funType funIdent funArgs funBlock) funEnv
+    lambda@(ELambda args t block) -> do
+      evaledLambda@(VFun (FnDef funType funIdent funArgs funBlock) funEnv) <- evalExp lambda
+      return evaledLambda
     _ -> evalExp exp
 defineFunctions (NoInit ident) = throwError $ "There is no definition for function with name " ++ show ident
 
@@ -179,7 +180,7 @@ evalBlock (s : ss) =
     Ass ident exp -> do
       evaledExp <- evalExp exp
       -- update variable ::: const :: a -> b -> a
-      updateVarByIdent ident (const evaledExp)
+      updateValueByIdent ident (const evaledExp)
       -- continue evaluation of stmts
       evalBlock ss
     Incr ident -> do
@@ -205,7 +206,7 @@ evalBlock (s : ss) =
       cond <- evalExp exp
       case cond of
         (VBool val) -> do
-          -- TODO: Maybe positive integer and not null string should be considered as true
+          -- Note: Only boolean values are expected
           if val
             then evalBlock (BStmt (Block [stmt1]) : ss)
             else evalBlock (BStmt (Block [stmt2]) : ss)

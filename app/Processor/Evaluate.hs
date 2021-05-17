@@ -6,9 +6,8 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
 import qualified Data.Map as M
-import Grammar.Abs
-
 import Debug.Trace as T
+import Grammar.Abs
 
 -- Setup
 
@@ -52,15 +51,18 @@ lambdaIdent = Ident "lambda"
 
 -- End setup
 
+-- Gets free address in memory for later usage
 newMCell :: Result Addr
 newMCell = do
   (mem, addr, stCount) <- get
   put (mem, addr + 1, stCount)
   return addr
 
+-- Updates memory in store by the given function
 updateMem :: (Mem -> Mem) -> Result ()
 updateMem f = modify (\(mem, addr, stCount) -> (f mem, addr, stCount))
 
+-- Returns the value under the given address in the memory
 getValueByAddr :: Addr -> Result Value
 getValueByAddr addr = do
   (mem, _, _) <- get
@@ -68,6 +70,7 @@ getValueByAddr addr = do
     Just val -> return val
     Nothing -> throwError "Nothing found in the specified address"
 
+-- Return the value by its identifier
 getValueByIdent :: Ident -> Result Value
 getValueByIdent ident = do
   env <- ask
@@ -75,8 +78,9 @@ getValueByIdent ident = do
     Just addr -> getValueByAddr addr
     Nothing -> throwError $ "Unknown variable " ++ show ident
 
-updateVarByIdent :: Ident -> (Value -> Value) -> Result ()
-updateVarByIdent ident f = do
+-- Applies the given function to the value found by its identifier with
+updateValueByIdent :: Ident -> (Value -> Value) -> Result ()
+updateValueByIdent ident f = do
   env <- ask
   case M.lookup ident env of
     Just addr -> do
@@ -84,6 +88,7 @@ updateVarByIdent ident f = do
       updateMem $ M.insert addr (f val)
     Nothing -> throwError $ "Unknown variable " ++ show ident
 
+-- Default initialization of variables of type (Int, Bool, Str)
 defaultInit :: Type -> Result Value
 defaultInit Int = return $ VNum 0
 defaultInit Bool = return $ VBool False
@@ -119,10 +124,12 @@ declareIdents = map getFromItem
 
 -- end of value declaration
 
+-- For debugging
+
 debugShow :: Result ()
 debugShow = do
   e <- ask
-  (mem,_, _) <- get
+  (mem, _, _) <- get
   let debugString = join $ map (entryToStr mem) (M.toList e)
   _ <- trace debugString $ return ()
   return ()
@@ -130,4 +137,3 @@ debugShow = do
     entryToStr :: Mem -> (Ident, Addr) -> String
     entryToStr mm (l, r) = "DEBUG: '" ++ identStr l ++ "'->" ++ show r ++ "->" ++ show (M.lookup r mm) ++ "\n"
     identStr (Ident i) = i
-

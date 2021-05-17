@@ -20,9 +20,9 @@ import System.Exit (exitFailure)
 -- run program
 
 accumulate :: Result (Result () -> Result ()) -> Result () -> Result ()
-accumulate declCont curRes = do
+accumulate declCont currentRes = do
   f <- declCont
-  f curRes
+  f currentRes
 
 declare :: TopDef -> Result (Result () -> Result ())
 declare topDef = do
@@ -32,8 +32,8 @@ declare topDef = do
     GlobFinDecl t items -> declareValues (declareIdents items) (initItems items t)
     FnDef _ ident _ _ -> declareValue ident (return $ VFun topDef mainEnv)
 
-setValuesInMem :: (Addr, Value) -> Result ()
-setValuesInMem (addr, value) = do
+setGlobEnvInValues :: (Addr, Value) -> Result ()
+setGlobEnvInValues (addr, value) = do
   globalEnv <- ask
   case value of
     (VFun f _) -> updateMem (M.insert addr (VFun f globalEnv))
@@ -42,8 +42,10 @@ setValuesInMem (addr, value) = do
 setGlobalEnv :: Result ()
 setGlobalEnv = do
   (mem, _, _) <- get
-  F.mapM_ setValuesInMem (M.toList mem)
+  F.mapM_ setGlobEnvInValues (M.toList mem)
 
+-- Configures the global environment of the program
+-- Calls the main function if it is found
 config :: Result ()
 config = do
   setGlobalEnv
@@ -61,28 +63,36 @@ config = do
 
 run :: Program -> Result ()
 run (Program topDefs) =
-  -- evaluate TopDefs: FnDef, GlobDecl, GlobFinDecl
-  -- TODO :: May be changed
+  -- Starts at the rightmost part of topDefs and combines each Result with config
+  -- by declaring and accumulating with config
   F.foldr (accumulate . declare) config topDefs
 
+-- Evaluates the program
+-- Print runtime error message if program is not correct
 runIO :: Program -> IO ()
 runIO p = do
-  result <- runExceptT (runStateT (runReaderT (run p) M.empty) (M.empty, 0, 0)) -- unbox from IO
+  result <- runExceptT (runStateT (runReaderT (run p) M.empty) (M.empty, 0, 0))
   case result of
     Bad msg -> putStrLn $ "Runtime error: " ++ msg
     _ -> return ()
 
 -- end run program
 
+-- In case no input file is provided
 usage :: IO ()
 usage = do
   putStrLn "Expecting input file as argument..."
   exitFailure
 
+-- Get input filename and read the content
 getInput :: [String] -> Maybe (IO String)
 getInput [] = Nothing
 getInput (fileName : _) = return $ readFile fileName
 
+-- Get input file and execute
+-- Show usage if no input file found
+-- Parse the program and get AST
+-- Evaluate the tree
 main :: IO ()
 main = do
   args <- getArgs
@@ -92,9 +102,11 @@ main = do
       input <- content
       case pProgram $ myLexer input of
         Bad msg -> do
+          -- In case parsing failed
           putStrLn "\nParse              Failed...\n"
           putStrLn "Tokens:"
           putStrLn msg
           exitFailure
         Ok t -> do
+          -- Execute the program
           runIO t
