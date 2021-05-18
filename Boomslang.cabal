@@ -4,15 +4,15 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 801365ea0178bf0d768cf73894fa9806a054e5b85c87e8aa138f266498adb016
+-- hash: 5cf94d05a4aa1efed89ed75217dd6f2e51e238ee4444539dc9c836ce4d0731ba
 
 name:           Boomslang
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/Boomslang#readme>
-homepage:       https://github.com/githubuser/Boomslang#readme
-bug-reports:    https://github.com/githubuser/Boomslang/issues
-author:         Author name here
-maintainer:     example@example.com
+description:    Please see the README on GitHub at <https://github.com/Gor027/Boomslang#readme>
+homepage:       https://github.com/Gor027/Boomslang#readme
+bug-reports:    https://github.com/Gor027/Boomslang/issues
+author:         Gor Stepanyan
+maintainer:     g.stepanyan@students.mimuw.edu.pl
 copyright:      2021 Author name here
 license:        BSD3
 license-file:   LICENSE
@@ -23,7 +23,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/Boomslang
+  location: https://github.com/Gor027/Boomslang
 
 library
   exposed-modules:
