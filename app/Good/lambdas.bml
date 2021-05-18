@@ -10,7 +10,7 @@ void testRecursiveLambda() {
     print("10th Fibonacci number is " + fib(10));
 }
 
-fun(void -> void) testClosure() {
+fun(-> void) testClosure() {
     string name = "Chrome";
 
     void printName() {
@@ -34,7 +34,7 @@ int main() {
     print("Result of 5 + 5 is " + addBy5(5));
 
     testRecursiveLambda();
-    fun(void -> void) namePrinter = testClosure();
+    fun(-> void) namePrinter = testClosure();
 
     namePrinter();
 
